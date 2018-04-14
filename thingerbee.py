@@ -1,26 +1,105 @@
-# Copyright 2018 Joseph Mathes
+#!/usr/bin/env python
 
-# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
-# associated documentation files (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
-# and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
+# Copyright 2016 Google Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-# The above copyright notice and this permission notice shall be included in all copies or substantial
-# portions of the Software.
+# [START imports]
+import os
+import urllib
 
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
-# NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+from google.appengine.api import users
+from google.appengine.ext import ndb
 
+import jinja2
 import webapp2
+
+JINJA_ENVIRONMENT = jinja2.Environment(
+    loader=jinja2.FileSystemLoader(os.path.dirname(__file__)),
+    extensions=['jinja2.ext.autoescape'],
+    autoescape=True)
+# [END imports]
+
+DEFAULT_GUESTBOOK_NAME = 'default_guestbook'
+
+
+# We set a parent key on the 'Greetings' to ensure that they are all
+# in the same entity group. Queries across the single entity group
+# will be consistent. However, the write rate should be limited to
+# ~1/second.
+
+def guestbook_key(guestbook_name=DEFAULT_GUESTBOOK_NAME):
+    """Constructs a Datastore key for a Guestbook entity.
+
+    We use guestbook_name as the key.
+    """
+    return ndb.Key('Guestbook', guestbook_name)
+
+
+# [START greeting]
+class Author(ndb.Model):
+    """Sub model for representing an author."""
+    identity = ndb.StringProperty(indexed=False)
+    email = ndb.StringProperty(indexed=False)
+
+
+class Greeting(ndb.Model):
+    """A main model for representing an individual Guestbook entry."""
+    author = ndb.StructuredProperty(Author)
+    content = ndb.StringProperty(indexed=False)
+    date = ndb.DateTimeProperty(auto_now_add=True)
+# [END greeting]
+
 
 
 class ThingerBee(webapp2.RequestHandler):
-    def get(self):
-        self.response.headers['Content-Type'] = 'text/plain'
-        self.response.write('Thingerbee!')
+
+  def get(self):
+    guestbook_name = self.request.get('guestbook_name',
+                                      DEFAULT_GUESTBOOK_NAME)
+    greetings_query = Greeting.query(
+        ancestor=guestbook_key(guestbook_name)).order(-Greeting.date)
+    greetings = greetings_query.fetch(10)
+
+    user = users.get_current_user()
+    if user:
+        url = users.create_logout_url(self.request.uri)
+        url_linktext = 'Logout'
+    else:
+        url = users.create_login_url(self.request.uri)
+        url_linktext = 'Login'
+
+    template_values = {
+        'user': user,
+        'greetings': greetings,
+        'guestbook_name': urllib.quote_plus(guestbook_name),
+        'url': url,
+        'url_linktext': url_linktext,
+    }
+
+    template = JINJA_ENVIRONMENT.get_template('index.html')
+    self.response.write(template.render(template_values))
+# [END main_page]
 
 
+class Admin(webapp2.RequestHandler):
+  def get(self):
+    self.response.write("Admintimes")
+      
+
+# [START app]
 app = webapp2.WSGIApplication([
-    ('/', ThingerBee),
+  ('/', ThingerBee),
+  ('/_admin', Admin),
 ], debug=True)
+# [END app]

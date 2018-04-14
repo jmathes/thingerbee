@@ -17,8 +17,15 @@ api_version: 1
 threadsafe: true
 
 handlers:
-  - url: /favicon\.ico
-    static_files: static/images/favicon.ico
-    upload: static/images/favicon\.ico
+  - url: /static/images
+    static_dir: static/images
+  - url: /static/css
+    static_dir: static/css
   - url: /.*
     script: thingerbee.app
+
+libraries:
+  - name: webapp2
+    version: 2.5.2
+  - name: jinja2
+    version: 2.6
