@@ -18,9 +18,14 @@
 import os
 import urllib
 
+from google.appengine.api import app_identity
 from google.appengine.api import users
-from google.appengine.ext import ndb
 
+from google.appengine.ext import blobstore
+from google.appengine.ext import ndb
+from google.appengine.ext.webapp import blobstore_handlers
+
+import lib.cloudstorage as gcs
 import jinja2
 import webapp2
 
@@ -30,76 +35,64 @@ JINJA_ENVIRONMENT = jinja2.Environment(
     autoescape=True)
 # [END imports]
 
-DEFAULT_GUESTBOOK_NAME = 'default_guestbook'
-
-
-# We set a parent key on the 'Greetings' to ensure that they are all
-# in the same entity group. Queries across the single entity group
-# will be consistent. However, the write rate should be limited to
-# ~1/second.
-
-def guestbook_key(guestbook_name=DEFAULT_GUESTBOOK_NAME):
-    """Constructs a Datastore key for a Guestbook entity.
-
-    We use guestbook_name as the key.
-    """
-    return ndb.Key('Guestbook', guestbook_name)
-
-
-# [START greeting]
-class Author(ndb.Model):
-    """Sub model for representing an author."""
-    identity = ndb.StringProperty(indexed=False)
-    email = ndb.StringProperty(indexed=False)
-
-
-class Greeting(ndb.Model):
-    """A main model for representing an individual Guestbook entry."""
-    author = ndb.StructuredProperty(Author)
-    content = ndb.StringProperty(indexed=False)
-    date = ndb.DateTimeProperty(auto_now_add=True)
-# [END greeting]
 
 
 
 class ThingerBee(webapp2.RequestHandler):
-
   def get(self):
-    guestbook_name = self.request.get('guestbook_name',
-                                      DEFAULT_GUESTBOOK_NAME)
-    greetings_query = Greeting.query(
-        ancestor=guestbook_key(guestbook_name)).order(-Greeting.date)
-    greetings = greetings_query.fetch(10)
 
-    user = users.get_current_user()
-    if user:
-        url = users.create_logout_url(self.request.uri)
-        url_linktext = 'Logout'
-    else:
-        url = users.create_login_url(self.request.uri)
-        url_linktext = 'Login'
+    template = JINJA_ENVIRONMENT.get_template('index.html')
+    upload_url = blobstore.create_upload_url('/upload')
+    template_values = {
+      'debug': 'basic',
+      'upload_url': upload_url,
+    }
+
+    for b in blobstore.BlobInfo.all():
+        self.response.out.write('<li><a href="/serve/%s' % str(b.key()) + '">' + str(b.filename) + '</a>')
+
+    self.response.write("<img src='http://localhost:8080/serve/S-q5kGZ4j-2XCzDfVHT63A=='>")
+
+    self.response.write(template.render(template_values))
+
+  def post(self):
+    bucket_name = app_identity.get_default_gcs_bucket_name()
+    filename = "/{}/foo".format(bucket_name)
+
+    upload_files = self.get_uploads('file')
+    blob_info = upload_files[0]
 
     template_values = {
-        'user': user,
-        'greetings': greetings,
-        'guestbook_name': urllib.quote_plus(guestbook_name),
-        'url': url,
-        'url_linktext': url_linktext,
+      'debug': blob_info,
     }
 
     template = JINJA_ENVIRONMENT.get_template('index.html')
     self.response.write(template.render(template_values))
 # [END main_page]
 
+class UploadHandler(blobstore_handlers.BlobstoreUploadHandler):
+    def post(self):
+        upload_files = self.get_uploads('file')
+        blob_info = upload_files[0]
+        self.redirect('/')
 
 class Admin(webapp2.RequestHandler):
   def get(self):
     self.response.write("Admintimes")
-      
+
+class ServeHandler(blobstore_handlers.BlobstoreDownloadHandler):
+    def get(self, blob_key):
+        blob_key = str(urllib.unquote(blob_key))
+        if not blobstore.get(blob_key):
+            self.error(404)
+        else:
+            self.send_blob(blobstore.BlobInfo.get(blob_key), save_as=True)      
 
 # [START app]
 app = webapp2.WSGIApplication([
   ('/', ThingerBee),
+  ('/upload', UploadHandler),
   ('/_admin', Admin),
+  ('/serve/([^/]+)?', ServeHandler),
 ], debug=True)
 # [END app]

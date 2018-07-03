@@ -6,7 +6,15 @@
     <link type="text/css" rel="stylesheet" href="static/css/thingerbee.css">
   </head>
   <body>
-    Hello Thingerbee!!
+    <p>Hello Thingerbee!!</p>
+    <p><b>{{ debug }}</b></p>
+    <p>
+      <form action="{{ upload_url }}" method="POST" enctype="multipart/form-data">
+      <input type="file" name="file">
+      <br>
+      <input type="submit" name="submit" value="Upload">
+      </form>
+    </p>
   </body>
 </html>
 
