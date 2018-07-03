@@ -6,15 +6,25 @@
     <link type="text/css" rel="stylesheet" href="static/css/thingerbee.css">
   </head>
   <body>
-    <p>Hello Thingerbee!!!!!</p>
-    <p><b>{{ debug }}</b></p>
-    <p>
-      <form action="{{ upload_url }}" method="POST" enctype="multipart/form-data">
-      <input type="file" name="file">
-      <br>
-      <input type="submit" name="submit" value="Upload">
-      </form>
-    </p>
+    <div class="container">
+      <div id="left-sidebar" class="left-sidebar">
+        <ol class="nav-links">
+          <li>fake_comic</li>
+          <li>fake_comic_2</li>
+        </ol>
+      </div>
+      <div id="content" class="content">
+        <p>Hello Thingerbee!!!!!</p>
+        <p><b>{{ debug }}</b></p>
+        <p>
+          <form action="{{ upload_url }}" method="POST" enctype="multipart/form-data">
+          <input type="file" name="file">
+          <br>
+          <input type="submit" name="submit" value="Upload">
+          </form>
+        </p>
+      </div>
+    </div>
   </body>
 </html>
 
